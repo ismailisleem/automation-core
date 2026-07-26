@@ -17,7 +17,7 @@ from automation_core.reporting import (
     build_report_data,
     generate_reporting_product,
 )
-from automation_core.reporting.platforms import classify_platform, platform_breakdown
+from automation_core.reporting.platforms import classify_platform, classify_platforms, platform_breakdown
 from automation_core.reporting.portfolio import (
     collect_report_runs,
     combine_report_portfolios,
@@ -105,6 +105,23 @@ def test_platform_breakdown_only_includes_present_platforms():
     assert breakdown["web"]["pass_rate"] == 50.0
     assert breakdown["api"]["pass_rate"] == 100.0
     assert "mobile" not in breakdown
+
+
+def test_platform_breakdown_counts_cross_platform_records_per_platform():
+    record = {
+        "status": "passed",
+        "duration_ms": 100,
+        "flaky_categories": [],
+        "capabilities": {"platforms": ["api", "web", "mobile"]},
+    }
+
+    assert classify_platforms(record) == ("api", "web", "mobile")
+
+    breakdown = platform_breakdown([record])
+
+    assert set(breakdown) == {"web", "mobile", "api"}
+    assert all(bucket["total"] == 1 for bucket in breakdown.values())
+    assert all(bucket["pass_rate"] == 100.0 for bucket in breakdown.values())
 
 
 def test_report_data_exposes_platforms_health_and_adjusted_gate():
