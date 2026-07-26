@@ -12,18 +12,45 @@ from automation_core.reporting.analysis import (
     flaky_analysis,
     summarize_run,
 )
+from automation_core.reporting.lineage import fq_id as _fq_id
 from automation_core.reporting.models import RunReport, TestCaseReport, to_jsonable
+from automation_core.reporting.platforms import platform_breakdown
 from automation_core.reporting.status import is_blocking_failure_status
 from automation_core.reporting.traversal import collect_action_retries, collect_test_artifacts
 
 INDEX_FILE = "index.json"
 
 
+def _platform_records(report: RunReport) -> list[dict[str, Any]]:
+    records: list[dict[str, Any]] = []
+    for test in report.tests:
+        metadata = test.metadata if isinstance(test.metadata, dict) else {}
+        records.append(
+            {
+                "status": test.status,
+                "duration_ms": test.duration_ms,
+                "domain": test.domain,
+                "suite": test.suite,
+                "platform_type": metadata.get("platform_type"),
+                "browser": metadata.get("browser"),
+                "device_name": metadata.get("device_name"),
+                "api_profile": metadata.get("api_profile"),
+                "context": metadata.get("context"),
+                "platform": metadata.get("platform"),
+                "flaky_categories": [],
+                "metadata": metadata,
+            }
+        )
+    return records
+
+
 def history_entry_from_report(report: RunReport) -> dict[str, Any]:
     summary = summarize_run(report)
     speed = fastest_slowest_tests(report, limit=10)
+    framework_hint = f"{report.framework} {report.project_name}".strip()
     return {
         **summary,
+        "platforms": dict(platform_breakdown(_platform_records(report), framework_hint=framework_hint)),
         "failure_categories": failure_categories(report),
         "failed_tests": [_failed_test_entry(test) for test in report.tests if is_blocking_failure_status(test.status)],
         "test_statuses": [_test_status_entry(test) for test in report.tests],
@@ -95,6 +122,7 @@ def trend_points(history_entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 entry.get("failed", 0) + entry.get("broken", 0) + entry.get("error", 0),
             ),
             "duration_ms": entry.get("duration_ms", 0),
+            "platforms": entry.get("platforms", {}),
         }
         for entry in history_entries
     ]
@@ -115,6 +143,10 @@ def _failed_test_entry(test: TestCaseReport) -> dict[str, Any]:
 def _test_status_entry(test: TestCaseReport) -> dict[str, Any]:
     return {
         "identity": _test_identity(test),
+        # Stable fully-qualified id used for test-content lineage matching. Kept
+        # separate from ``identity`` (which drives failure-transition history) so
+        # neither changes the other's behaviour.
+        "fq_id": _fq_id(test),
         "test_id": test.id,
         "name": test.name,
         "full_name": test.full_name,

@@ -13,7 +13,13 @@ from automation_core.reporting.analysis import (
 from automation_core.reporting.events import ReportingEvent, build_timeline_events
 from automation_core.reporting.history import trend_points
 from automation_core.reporting.insights import ReportInsightConfig, build_enterprise_insights
+from automation_core.reporting.lineage import (
+    build_lineage_view,
+    run_view_from_history_entry,
+    run_view_from_report,
+)
 from automation_core.reporting.models import Artifact, RunReport, TestCaseReport, to_jsonable
+from automation_core.reporting.platforms import classify_platform, platform_breakdown
 from automation_core.reporting.quality import QualityGate, QualityGateConfig, evaluate_quality_gates
 from automation_core.reporting.redaction import redact_payload, redact_report, redaction_manifest
 from automation_core.reporting.status import is_blocking_failure_status, normalized_status
@@ -70,6 +76,7 @@ def build_report_data(
         },
         "test_index": test_index,
         "aggregates": aggregates,
+        "platforms": aggregates["platforms"],
         "charts": {
             "status_distribution": aggregates["status_distribution"],
             "duration_buckets": aggregates["duration_buckets"],
@@ -90,6 +97,8 @@ def build_report_data(
         "signals": signals,
         "risk_signals": _risk_signals(report, test_index),
         "quality_score": insights["quality_score"],
+        "health_score": insights["health_score"],
+        "adjusted_pass_rate": insights["adjusted_pass_rate"],
         "risk_signal": insights["risk_signal"],
         "quality": evaluate_quality_gates(report, quality_gates).to_dict(),
         "default_gate_status": insights["default_gate_status"],
@@ -110,6 +119,7 @@ def build_report_data(
             "trend_points": trend_points(history),
             "comparison": _history_comparison(summary, history),
         },
+        "lineage": _lineage_block(report, history),
         "artifacts": _artifact_index(report),
         "sharing": {
             "safe_share": redaction,
@@ -120,6 +130,42 @@ def build_report_data(
         payload, payload_redaction = redact_payload(payload)
         payload["sharing"]["safe_share"] = _merge_redaction(redaction, payload_redaction)
     return to_jsonable(payload)
+
+
+def _lineage_block(report: RunReport, history: list[dict[str, Any]]) -> dict[str, Any]:
+    """This run's test-content identity plus its cross-run lineage view-model.
+
+    ``signature`` is the sorted set of fully-qualified test ids the run executed
+    — an internal matching key; user-facing surfaces render friendly names. The
+    rest (trend, diff vs the previous run, coverage, lineage size) is assembled
+    from the retained history so the report can draw its lineage surfaces.
+    """
+    current = run_view_from_report(report)
+    history_views = [run_view_from_history_entry(entry) for entry in history if entry.get("run_id") != report.run_id]
+    view_model = build_lineage_view(current, history_views)
+    return {
+        "signature": sorted(current.signature),
+        "size": current.size,
+        "pass_rate": current.pass_rate,
+        "suite_label": _suite_label(report),
+        **view_model,
+    }
+
+
+def _suite_label(report: RunReport) -> str:
+    """A friendly, human name for the test set this run belongs to.
+
+    Derived from the run's content (most common domain, else suite); the lineage
+    identity itself stays the fully-qualified test set, this is only the label.
+    """
+    for attr in ("domain", "suite"):
+        counts = Counter(getattr(test, attr, "") for test in report.tests if getattr(test, attr, ""))
+        if counts:
+            top = str(counts.most_common(1)[0][0])
+            if len(top) > 44:
+                top = top[:43].rstrip() + "…"
+            return top if len(counts) == 1 else f"{top} +{len(counts) - 1}"
+    return "This test set"
 
 
 def _default_export_links() -> dict[str, str]:
@@ -157,6 +203,7 @@ def _merge_redaction(primary: dict[str, Any] | None, secondary: dict[str, Any] |
 
 
 def _test_index(report: RunReport, details: dict[str, str]) -> list[dict[str, Any]]:
+    framework_hint = f"{report.framework} {report.project_name}".strip()
     flaky_items = flaky_analysis(report)
     flaky_by_test: dict[str, list[dict[str, Any]]] = {}
     for item in flaky_items:
@@ -204,6 +251,7 @@ def _test_index(report: RunReport, details: dict[str, str]) -> list[dict[str, An
             "metadata": test.metadata,
             "capabilities": test.capabilities,
         }
+        record["platform_type"] = classify_platform(record, framework_hint=framework_hint)
         record["search_text"] = _search_text(record)
         index.append(record)
     return index
@@ -252,6 +300,7 @@ def _aggregates(report: RunReport, test_index: list[dict[str, Any]]) -> dict[str
         "artifact_types": dict(sorted(artifact_types.items())),
         "coverage": _coverage_dimensions(test_index),
         "filter_options": _filter_options(test_index),
+        "platforms": dict(platform_breakdown(test_index)),
     }
 
 

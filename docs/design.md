@@ -188,7 +188,7 @@ The finalizer returns structured status data:
 
 ```python
 assert result.core.generated
-print(result.core.path)      # reports/automation-report/index.html, portfolio dashboard
+print(result.core.path)  # reports/automation-report/index.html, portfolio dashboard
 print(result.core.run_path)  # reports/automation-report/runs/<timestamp>-<run-id>/index.html
 print(result.warnings)
 ```
