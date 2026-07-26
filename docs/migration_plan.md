@@ -7,7 +7,7 @@
 في كل repo، أضف dependency بعد نشر GitHub tag:
 
 ```text
-automation-core @ git+https://github.com/iisleem/automation-core.git@v0.11.5
+automation-core @ git+https://github.com/ismailisleem/automation-core.git@v0.12.0
 ```
 
 أو لاحقاً إذا تم نشرها كـ package:
@@ -185,6 +185,7 @@ Reporting wrapper المقترح:
 ```python
 from automation_core.reporting import finalize_allure_reporting
 
+
 def finalize_reports(results_dir, output_dir, *, run_id=None, open_report=False):
     return finalize_allure_reporting(
         results_dir=results_dir,
@@ -202,6 +203,7 @@ def finalize_reports(results_dir, output_dir, *, run_id=None, open_report=False)
 
 ```python
 from automation_core.reporting import finalize_allure_reporting
+
 
 def finalize_reports(results_dir, output_dir, *, run_id=None, metadata_by_test=None, open_report=False):
     return finalize_allure_reporting(
@@ -222,6 +224,7 @@ def finalize_reports(results_dir, output_dir, *, run_id=None, metadata_by_test=N
 
 ```python
 from automation_core.reporting import finalize_allure_reporting
+
 
 def finalize_reports(results_dir, output_dir, *, run_id=None, metadata_by_test=None, open_report=False):
     return finalize_allure_reporting(
@@ -252,6 +255,7 @@ from automation_core.logger import get_logger as _get_logger
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
+
 def get_logger(name: str):
     return _get_logger(name, log_file=PROJECT_ROOT / "reports" / "framework.log")
 ```
@@ -262,8 +266,10 @@ def get_logger(name: str):
 from automation_core.helpers.security import *
 from automation_core.helpers.security import BROWSER_SECURITY_HEADERS
 
+
 def assert_security_headers(response_or_headers, required_headers=None):
     from automation_core.helpers.security import assert_security_headers as core_assert
+
     return core_assert(response_or_headers, required_headers or BROWSER_SECURITY_HEADERS)
 ```
 
@@ -294,6 +300,7 @@ Config migration:
 ```python
 from automation_core.config import ConfigReader as CoreConfigReader
 
+
 class ConfigReader(CoreConfigReader):
     def read_capabilities(self):
         return self.read_yaml("config/capabilities.yaml")
@@ -313,8 +320,10 @@ Allure debug mobile signature wrapper:
 from automation_core.reporting import attach_json as _attach_json
 from automation_core.reporting import attach_text as _attach_text
 
+
 def attach_text(name: str, value: str) -> None:
     _attach_text(value, name=name)
+
 
 def attach_json(name: str, value) -> None:
     _attach_json(value, name=name)
@@ -361,11 +370,14 @@ from automation_core.config import ConfigReader, deep_get, load_json, load_yaml
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
+
 def load_settings() -> dict[str, Any]:
     return ConfigReader(PROJECT_ROOT).read_settings()
 
+
 def load_environments() -> dict[str, Any]:
     return ConfigReader(PROJECT_ROOT).read_environments()
+
 
 def get_environment_config(env: str | None = None) -> dict[str, Any]:
     reader = ConfigReader(PROJECT_ROOT)
@@ -398,8 +410,8 @@ pytest
 
 بعد اعتماد الحزمة:
 
-1. إنشاء repo عام `iisleem/automation-core`.
+1. إنشاء repo عام `ismailisleem/automation-core`.
 2. رفع الكود.
 3. عمل release tag ثابت، مثل `v0.11.5`.
-4. ربط repo بنفس GitHub Project: `https://github.com/users/iisleem/projects/4`.
+4. ربط repo بنفس GitHub Project: `https://github.com/users/ismailisleem/projects/4`.
 5. تحديث dependencies في web/mobile/api إلى tag ثابت.
