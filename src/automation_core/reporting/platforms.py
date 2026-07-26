@@ -77,6 +77,37 @@ def classify_platform(record: dict[str, Any], *, framework_hint: str = "", defau
     return default if default in _VALID else "web"
 
 
+def classify_platforms(record: dict[str, Any], *, framework_hint: str = "", default: str = "web") -> tuple[str, ...]:
+    """Classify a record into one or more platform buckets.
+
+    Most framework tests belong to exactly one platform. Cross-platform
+    orchestrator journeys can legitimately cover several platforms, so adapters
+    may provide ``platforms`` in the record, metadata, or capabilities.
+    """
+
+    metadata = record.get("metadata") or {}
+    capabilities = record.get("capabilities") or {}
+    candidates = record.get("platforms") or metadata.get("platforms") or capabilities.get("platforms")
+    platforms = _normalize_platforms(candidates)
+    if platforms:
+        return platforms
+    return (classify_platform(record, framework_hint=framework_hint, default=default),)
+
+
+def _normalize_platforms(value: Any) -> tuple[str, ...]:
+    if not value:
+        return ()
+    raw_items = value.replace(",", " ").split() if isinstance(value, str) else value
+    if not isinstance(raw_items, (list, tuple, set, frozenset)):
+        return ()
+    result: list[str] = []
+    for item in raw_items:
+        platform = _lower(item)
+        if platform in _VALID and platform not in result:
+            result.append(platform)
+    return tuple(result)
+
+
 def _blank_bucket() -> dict[str, Any]:
     return {
         "total": 0,
@@ -112,19 +143,20 @@ def platform_breakdown(
 
     buckets: dict[str, dict[str, Any]] = {name: _blank_bucket() for name in PLATFORMS}
     for record in test_index:
-        platform = record.get("platform_type") or classify_platform(record, framework_hint=framework_hint)
-        bucket = buckets[platform if platform in _VALID else "web"]
-        bucket["total"] += 1
-        status = record.get("status", "")
-        if _is_pass(status):
-            bucket["passed"] += 1
-        elif _is_failed_broken(status):
-            bucket["failed_broken"] += 1
-        elif _is_skipped(status):
-            bucket["skipped"] += 1
-        if record.get("flaky_categories"):
-            bucket["flaky"] += 1
-        bucket["duration_ms"] += float(record.get("duration_ms") or 0)
+        platforms = classify_platforms(record, framework_hint=framework_hint)
+        for platform in platforms:
+            bucket = buckets[platform if platform in _VALID else "web"]
+            bucket["total"] += 1
+            status = record.get("status", "")
+            if _is_pass(status):
+                bucket["passed"] += 1
+            elif _is_failed_broken(status):
+                bucket["failed_broken"] += 1
+            elif _is_skipped(status):
+                bucket["skipped"] += 1
+            if record.get("flaky_categories"):
+                bucket["flaky"] += 1
+            bucket["duration_ms"] += float(record.get("duration_ms") or 0)
 
     result: OrderedDict[str, dict[str, Any]] = OrderedDict()
     for name in PLATFORMS:

@@ -19,7 +19,7 @@ from automation_core.reporting.lineage import (
     run_view_from_report,
 )
 from automation_core.reporting.models import Artifact, RunReport, TestCaseReport, to_jsonable
-from automation_core.reporting.platforms import classify_platform, platform_breakdown
+from automation_core.reporting.platforms import classify_platform, classify_platforms, platform_breakdown
 from automation_core.reporting.quality import QualityGate, QualityGateConfig, evaluate_quality_gates
 from automation_core.reporting.redaction import redact_payload, redact_report, redaction_manifest
 from automation_core.reporting.status import is_blocking_failure_status, normalized_status
@@ -251,7 +251,11 @@ def _test_index(report: RunReport, details: dict[str, str]) -> list[dict[str, An
             "metadata": test.metadata,
             "capabilities": test.capabilities,
         }
-        record["platform_type"] = classify_platform(record, framework_hint=framework_hint)
+        platform_types = list(classify_platforms(record, framework_hint=framework_hint))
+        record["platform_types"] = platform_types
+        record["platform_type"] = (
+            platform_types[0] if platform_types else classify_platform(record, framework_hint=framework_hint)
+        )
         record["search_text"] = _search_text(record)
         index.append(record)
     return index

@@ -1156,7 +1156,7 @@ function render(){
   var f={status:val('ex-status'),platform:val('ex-platform'),domain:val('ex-domain'),profile:val('ex-profile'),failure:val('ex-failure'),flaky:val('ex-flaky'),artifact:val('ex-artifact'),duration:val('ex-duration')};
   var out=items.filter(function(t){
     return (!q||(t.search_text||'').indexOf(q)>=0)
-      &&(!f.status||t.status===f.status)&&(!f.platform||t.platform_type===f.platform)
+      &&(!f.status||t.status===f.status)&&(!f.platform||t.platform_type===f.platform||(t.platform_types||[]).indexOf(f.platform)>=0)
       &&(!f.domain||t.domain===f.domain)&&(!f.profile||t.profile===f.profile)
       &&(!f.failure||((t.failure||{}).category)===f.failure)
       &&(!f.flaky||(t.flaky_categories||[]).indexOf(f.flaky)>=0)
@@ -1171,10 +1171,11 @@ function render(){
   document.getElementById('ex-failure-chart').innerHTML=bars(countBy(out,function(t){return (t.failure||{}).category;}),'var(--fail)');
   var head=['Status','Test','Platform','Domain','Duration','Failure'].map(function(h){return '<th style="padding:14px 16px;text-align:left;font-size:11px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;color:var(--faint);background:var(--surfaceAlt);">'+h+'</th>';}).join('');
   var rows=out.map(function(t){var sc=statusColors(t.status);
+    var platformLabel=((t.platform_types&&t.platform_types.length)?t.platform_types:[t.platform_type||'']).filter(Boolean).map(function(p){return p.charAt(0).toUpperCase()+p.slice(1);}).join(', ');
     var known=(t.metadata||{}).known_issue?'<div style="font-family:\'IBM Plex Mono\',monospace;font-size:11px;color:var(--flaky);margin-top:4px;">Known Issue · '+esc((t.metadata||{}).known_issue)+'</div>':'';
     return '<tr><td style="padding:14px 16px;border-top:1px solid var(--border);vertical-align:top;"><span style="display:inline-block;padding:3px 9px;border-radius:100px;font-family:\'IBM Plex Mono\',monospace;font-size:11px;font-weight:700;background:'+sc[1]+';color:'+sc[0]+';">'+esc(t.status)+'</span></td>'
       +'<td style="padding:14px 16px;border-top:1px solid var(--border);min-width:240px;max-width:520px;"><a href="'+esc(t.detail_href||'#')+'" title="'+esc(t.name)+'" style="font-family:\'IBM Plex Mono\',monospace;font-size:12.5px;color:var(--link);text-decoration:none;display:block;overflow-wrap:anywhere;word-break:break-word;line-height:1.45;">'+esc(t.name)+'</a><span style="font-family:\'IBM Plex Mono\',monospace;font-size:11.5px;color:var(--faint);overflow-wrap:anywhere;">'+esc(t.suite||'')+'</span>'+known+'</td>'
-      +'<td style="padding:14px 16px;border-top:1px solid var(--border);font-weight:600;">'+esc((t.platform_type||'').charAt(0).toUpperCase()+(t.platform_type||'').slice(1))+'</td>'
+      +'<td style="padding:14px 16px;border-top:1px solid var(--border);font-weight:600;">'+esc(platformLabel||'-')+'</td>'
       +'<td style="padding:14px 16px;border-top:1px solid var(--border);font-family:\'IBM Plex Mono\',monospace;font-size:12px;color:var(--muted);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="'+esc(t.domain||'')+'">'+esc(t.domain||'-')+'</td>'
       +'<td style="padding:14px 16px;border-top:1px solid var(--border);font-family:\'IBM Plex Mono\',monospace;">'+fdur(t.duration_ms)+'</td>'
       +'<td style="padding:14px 16px;border-top:1px solid var(--border);font-size:12.5px;color:var(--muted);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="'+esc((t.failure||{}).title||'')+'">'+esc((t.failure||{}).title||'—')+'</td></tr>';
