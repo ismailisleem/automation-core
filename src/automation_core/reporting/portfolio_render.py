@@ -171,6 +171,7 @@ def render_compare(data: dict[str, Any]) -> str:
             "Select up to 5 runs to compare side by side, across any platform.",
         )
         + '<div id="cmp-picker" style="margin-bottom:22px;"></div>'
+        + '<div id="cmp-note" style="margin-bottom:22px;"></div>'
         + '<div id="cmp-scorecards" style="display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); '
         'gap:18px; margin-bottom:22px;"></div>'
         + '<div id="cmp-bars" style="display:grid; grid-template-columns:repeat(3,1fr); gap:18px; '
@@ -275,8 +276,25 @@ function renderDashboard(){
   // insights
   var wins=[],focus=[];
   var pf=aggPlatforms(reports);
-  var best=Object.keys(pf).sort(function(a,b){return pf[b].pass-pf[a].pass;})[0];
-  if(best)wins.push(best.charAt(0).toUpperCase()+best.slice(1)+' is the strongest platform at '+Math.round(pf[best].pass)+'% pass rate.');
+  var platformNames=Object.keys(pf);
+  var best=platformNames.sort(function(a,b){return pf[b].pass-pf[a].pass;})[0];
+  function titlePlatform(p){return p.charAt(0).toUpperCase()+p.slice(1);}
+  function humanList(items){
+    if(items.length<=1)return items[0]||'';
+    if(items.length===2)return items[0]+' and '+items[1];
+    return items.slice(0,-1).join(', ')+', and '+items[items.length-1];
+  }
+  if(best){
+    var topPass=Math.round(pf[best].pass);
+    var leaders=platformNames.filter(function(p){return Math.round(pf[p].pass)===topPass;}).map(titlePlatform);
+    if(leaders.length===platformNames.length && platformNames.length>1){
+      wins.push('All active platforms are tied at '+topPass+'% pass rate.');
+    }else if(leaders.length>1){
+      wins.push(humanList(leaders)+' are tied at '+topPass+'% pass rate.');
+    }else{
+      wins.push(titlePlatform(best)+' is the strongest platform at '+topPass+'% pass rate.');
+    }
+  }
   if(ready)wins.push(ready+' of '+total+' run(s) are release-ready.');
   var healed=reports.reduce(function(a,r){return a+(r.healing_event_count||0);},0);
   if(healed)wins.push('Self-healing recovered '+healed+' failure(s) across retained runs.');
