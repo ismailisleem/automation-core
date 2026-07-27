@@ -348,6 +348,27 @@ def test_compare_run_ids_do_not_char_wrap(tmp_path):
     assert "title=\"'+esc(r.run_id)+'\"" in compare
 
 
+def test_portfolio_dashboard_copy_accounts_for_platform_ties(tmp_path):
+    root = tmp_path / "portfolio"
+    for platform, day in (("web", 14), ("mobile", 15), ("api", 16)):
+        report = _single_platform_report(platform, f"{platform}-run", day)
+        run_dir = prepare_timestamped_report_dir(root, run_id=report.run_id, generated_at=report.generated_at)
+        generate_reporting_product(report, run_dir, update_history_file=False)
+
+    generate_report_portfolio(root, current_report_dir=run_dir)
+
+    portfolio_data = json.loads((root / "portfolio-data.json").read_text(encoding="utf-8"))
+    platform_pass_rates = {
+        platform: round(metrics["pass_rate"])
+        for run in portfolio_data["reports"]
+        for platform, metrics in run["platforms"].items()
+    }
+    assert platform_pass_rates == {"web": 100, "mobile": 100, "api": 100}
+
+    portfolio = (root / "index.html").read_text(encoding="utf-8")
+    assert "All active platforms are tied at " in portfolio
+
+
 def test_combine_report_portfolios_merges_platforms_and_preserves_runs(tmp_path):
     # Three separate framework report trees, one per platform.
     sources = []
