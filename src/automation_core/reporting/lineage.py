@@ -69,6 +69,11 @@ class RunView:
         """Raw pass rate over this run's whole signature."""
         return self.pass_rate_over(self.statuses)
 
+    @property
+    def passed_ids(self) -> frozenset[str]:
+        """The fully-qualified ids that passed — enough to score any subset."""
+        return frozenset(i for i, status in self.statuses.items() if status in PASSED_STATUSES)
+
 
 def fq_id(test: Any) -> str:
     """Best-available stable, cross-run identity for one test.

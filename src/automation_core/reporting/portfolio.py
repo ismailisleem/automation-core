@@ -189,6 +189,22 @@ def build_portfolio_data(
     }
 
 
+def _compact_lineage(report_data: dict[str, Any]) -> dict[str, Any]:
+    """The minimal lineage data the Compare page needs to score the intersection.
+
+    Carries the run's test signature and which of those passed, so the client
+    can compute pass rate over the tests every selected run shares.
+    """
+    lineage = report_data.get("lineage", {}) if isinstance(report_data.get("lineage"), dict) else {}
+    signature = lineage.get("signature", []) or []
+    return {
+        "signature": list(signature),
+        "pass_ids": list(lineage.get("pass_ids", []) or []),
+        "size": int(lineage.get("size", len(signature)) or 0),
+        "suite_label": lineage.get("suite_label", ""),
+    }
+
+
 def _report_entry(output_path: Path, run_dir: Path, report_data: dict[str, Any]) -> dict[str, Any]:
     summary = _summary_from_report_data(report_data)
     charts = report_data.get("charts", {}) if isinstance(report_data.get("charts"), dict) else {}
@@ -283,6 +299,7 @@ def _report_entry(output_path: Path, run_dir: Path, report_data: dict[str, Any])
         "duration_delta_ms": health.get("duration_delta_ms"),
         "platforms": platforms,
         "platform_names": [name.capitalize() for name in platforms],
+        "lineage": _compact_lineage(report_data),
     }
     gate_passed = str(gate.get("status", "")).lower() == "passed"
     entry["readiness"] = "ready" if gate_passed else "blocked"
