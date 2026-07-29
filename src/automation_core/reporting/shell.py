@@ -274,16 +274,18 @@ _RESPONSIVE_CSS = """
 /* Compare delta table -> stacked label/value cards before it would need to
    scroll, so Run, Pass Rate and Changes are all readable without swiping. */
 @media (max-width: 760px){
-  .delta-table{min-width:0 !important;}
-  .delta-table thead{display:none;}
-  .delta-table tbody tr{display:block; border:1px solid var(--border); border-radius:10px;
-    padding:2px 14px; margin-bottom:10px; background:var(--surface);}
+  .delta-table, .delta-table tbody{display:block !important; width:100% !important; max-width:100% !important;
+    min-width:0 !important; box-sizing:border-box;}
+  .delta-table thead{display:none !important;}
+  .delta-table tbody tr{display:block !important; width:100% !important; box-sizing:border-box;
+    border:1px solid var(--border); border-radius:10px; padding:2px 14px; margin-bottom:10px;
+    background:var(--surface);}
   .delta-table td{display:flex !important; justify-content:space-between !important; align-items:center;
-    gap:14px; text-align:right !important; white-space:normal !important; padding:8px 0 !important;
-    border:0 !important; overflow-wrap:anywhere;}
+    gap:14px; width:100% !important; box-sizing:border-box; text-align:right !important;
+    white-space:normal !important; padding:8px 0 !important; border:0 !important; overflow-wrap:anywhere;}
   .delta-table td::before{content:attr(data-label); color:var(--faint); font-size:11px; font-weight:700;
     letter-spacing:0.04em; text-transform:uppercase; text-align:left; white-space:nowrap; flex-shrink:0;}
-  .delta-table td .delta-value{text-align:right; white-space:nowrap;}
+  .delta-table td .delta-value{min-width:0; text-align:right; overflow-wrap:anywhere;}
   .delta-table td[data-label="Run"]{display:block !important; text-align:left !important;
     border-bottom:1px solid var(--border) !important; padding-bottom:9px !important; margin-bottom:2px;}
   .delta-table td[data-label="Run"]::before{display:none;}
