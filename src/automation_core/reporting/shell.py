@@ -282,10 +282,11 @@ _RESPONSIVE_CSS = """
     gap:14px; text-align:right !important; white-space:normal !important; padding:8px 0 !important;
     border:0 !important; overflow-wrap:anywhere;}
   .delta-table td::before{content:attr(data-label); color:var(--faint); font-size:11px; font-weight:700;
-    letter-spacing:0.04em; text-transform:uppercase; text-align:left; white-space:nowrap;}
-  .delta-table td[data-label="Run"]{border-bottom:1px solid var(--border) !important;
-    padding-bottom:9px !important; margin-bottom:2px;}
-  .delta-table td[data-label="Run"]::before{content:"";}
+    letter-spacing:0.04em; text-transform:uppercase; text-align:left; white-space:nowrap; flex-shrink:0;}
+  .delta-table td .delta-value{text-align:right; white-space:nowrap;}
+  .delta-table td[data-label="Run"]{display:block !important; text-align:left !important;
+    border-bottom:1px solid var(--border) !important; padding-bottom:9px !important; margin-bottom:2px;}
+  .delta-table td[data-label="Run"]::before{display:none;}
 }
 """
 

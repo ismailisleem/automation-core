@@ -517,14 +517,14 @@ function renderCompare(){
   if(runs.length>=2){
     var base=runs[0];var baseSig=sigOf(base);var useShared=shared.size>0;
     var basePR=useShared?rateOverShared(base,shared):Number(base.pass_rate||0);
-    function d(cur,prev,suffix,invert,label){var diff=cur-prev;var good=invert?diff<0:diff>0;var col=diff===0?'var(--muted)':(good?'var(--pass)':'var(--fail)');var sign=diff>0?'+':'';return '<td data-label="'+label+'" style="text-align:right;font-family:\'IBM Plex Mono\',monospace;white-space:nowrap;padding:10px 12px;color:'+col+';">'+sign+(suffix==='s'?(Math.round(diff/100)/10):Math.round(diff))+suffix+'</td>';}
+    function d(cur,prev,suffix,invert,label){var diff=cur-prev;var good=invert?diff<0:diff>0;var col=diff===0?'var(--muted)':(good?'var(--pass)':'var(--fail)');var sign=diff>0?'+':'';return '<td data-label="'+label+'" style="text-align:right;font-family:\'IBM Plex Mono\',monospace;white-space:nowrap;padding:10px 12px;color:'+col+';"><span class="delta-value">'+sign+(suffix==='s'?(Math.round(diff/100)/10):Math.round(diff))+suffix+'</span></td>';}
     var rows=runs.slice(1).map(function(r){
       var pr=useShared?rateOverShared(r,shared):Number(r.pass_rate||0);var prDiff=pr-basePR;
       var prCol=prDiff===0?'var(--muted)':(prDiff>0?'var(--pass)':'var(--fail)');var prSign=prDiff>0?'+':'';
       var dv=diffVs(baseSig,sigOf(r));
-      var changesCell='<td data-label="Changes" style="text-align:right;font-family:\'IBM Plex Mono\',monospace;white-space:nowrap;padding:10px 12px;color:var(--muted);"><span style="color:var(--pass);">+'+dv.added+'</span> · <span style="color:var(--fail);">&minus;'+dv.removed+'</span></td>';
-      return '<tr><td data-label="Run" style="font-family:\'IBM Plex Mono\',monospace;font-weight:600;white-space:nowrap;padding:10px 12px;overflow-wrap:anywhere;">'+esc(r.run_id)+'</td>'
-        +'<td data-label="Pass Rate" style="text-align:right;font-family:\'IBM Plex Mono\',monospace;white-space:nowrap;padding:10px 12px;">'+Math.round(pr)+'% <span style="color:'+prCol+';">'+prSign+Math.round(prDiff)+'%</span></td>'
+      var changesCell='<td data-label="Changes" style="text-align:right;font-family:\'IBM Plex Mono\',monospace;white-space:nowrap;padding:10px 12px;color:var(--muted);"><span class="delta-value"><span style="color:var(--pass);">+'+dv.added+'</span> · <span style="color:var(--fail);">&minus;'+dv.removed+'</span></span></td>';
+      return '<tr><td data-label="Run" style="font-family:\'IBM Plex Mono\',monospace;font-weight:600;white-space:nowrap;padding:10px 12px;overflow-wrap:anywhere;"><span class="delta-value">'+esc(r.run_id)+'</span></td>'
+        +'<td data-label="Pass Rate" style="text-align:right;font-family:\'IBM Plex Mono\',monospace;white-space:nowrap;padding:10px 12px;"><span class="delta-value">'+Math.round(pr)+'% <span style="color:'+prCol+';">'+prSign+Math.round(prDiff)+'%</span></span></td>'
         +changesCell
         +d(r.failed_total,base.failed_total,'',true,'Failed')+d(r.flaky,base.flaky,'',true,'Flaky')+d(r.duration_ms,base.duration_ms,'s',true,'Duration')+'</tr>';
     }).join('');
