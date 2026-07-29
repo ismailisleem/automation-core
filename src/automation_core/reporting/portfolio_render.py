@@ -440,6 +440,32 @@ function getSel(){try{return JSON.parse(localStorage.getItem(selKey())||'[]');}c
 function setSel(v){try{localStorage.setItem(selKey(),JSON.stringify(v.slice(0,5)));}catch(e){}}
 function byDir(d,dir){return (d.reports||[]).filter(function(r){return r.run_dir===dir;})[0];}
 function shortId(id){return String(id||'').replace(/^RUN-?/,'').replace(/Z$/,'');}
+function sigOf(r){return new Set(((r.lineage||{}).signature)||[]);}
+function passOf(r){return new Set(((r.lineage||{}).pass_ids)||[]);}
+function sizeOf(r){var s=(r.lineage||{}).size;return (s==null)?sigOf(r).size:s;}
+function intersectAll(runs){
+  var sets=runs.map(sigOf);if(!sets.length)return new Set();
+  var out=new Set();
+  sets[0].forEach(function(x){var inAll=true;for(var i=1;i<sets.length;i++){if(!sets[i].has(x)){inAll=false;break;}}if(inAll)out.add(x);});
+  return out;
+}
+function rateOverShared(r,shared){
+  if(!shared.size)return null;var pass=passOf(r);var hit=0;shared.forEach(function(x){if(pass.has(x))hit++;});
+  return Math.round(hit/shared.size*1000)/10;
+}
+function diffVs(baseSig,otherSig){
+  var added=Array.from(otherSig).filter(function(x){return !baseSig.has(x);}).length;
+  var removed=Array.from(baseSig).filter(function(x){return !otherSig.has(x);}).length;
+  return {added:added,removed:removed};
+}
+function sameLineage(runs){
+  for(var i=0;i<runs.length;i++)for(var j=i+1;j<runs.length;j++){
+    var a=sigOf(runs[i]),b=sigOf(runs[j]);if(!a.size||!b.size)return false;
+    var shared=Array.from(a).filter(function(x){return b.has(x);}).length;
+    if(shared/Math.min(a.size,b.size)<0.6)return false;
+  }
+  return true;
+}
 function renderCompare(){
   var d=pfData();var all=d.reports||[];var sel=getSel().filter(function(dir){return byDir(d,dir);});
   // picker
@@ -451,10 +477,22 @@ function renderCompare(){
     +(sel.length<5?'<div style="border-top:1px solid var(--border);padding-top:14px;"><div style="font-size:13px;font-weight:700;margin-bottom:6px;">Add a run ('+(5-sel.length)+' slot(s) left)</div>'+addList+'</div>':'')+'</div>';
   // scorecards
   var runs=sel.map(function(dir){return byDir(d,dir);});
+  var shared=intersectAll(runs);
+  var refSize=runs.length?Math.max.apply(null,runs.map(sizeOf)):0;
+  var lineageOk=runs.length>=2&&sameLineage(runs)&&shared.size>0;
+  // shared-tests note: comparisons are fair only over the tests every run ran.
+  if(runs.length>=2&&shared.size>0){
+    var suite=(((runs[0].lineage||{}).suite_label)||'');
+    var lin=lineageOk?(' · same lineage'+(suite?' ('+esc(suite)+')':'')):' · runs span different test sets';
+    document.getElementById('cmp-note').innerHTML='<div style="display:flex;align-items:center;gap:10px;background:var(--surfaceAlt);border:1px solid var(--border);border-radius:12px;padding:12px 16px;font-size:13px;color:var(--muted);">'
+      +'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>'
+      +'<span>Compared over <strong style="color:var(--text);">'+shared.size+'</strong> shared test'+(shared.size===1?'':'s')+lin+'</span></div>';
+  } else {document.getElementById('cmp-note').innerHTML='';}
   document.getElementById('cmp-scorecards').innerHTML=runs.map(function(r){
     var ready=r.readiness==='ready';var pc=r.pass_rate>=80?'var(--pass)':(r.pass_rate>=60?'var(--flaky)':'var(--fail)');
+    var partial=(runs.length>=2&&sizeOf(r)<refSize)?'<span style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:100px;font-family:\'IBM Plex Mono\',monospace;font-size:10.5px;font-weight:700;background:var(--flakySoft);color:var(--flaky);">PARTIAL '+sizeOf(r)+'/'+refSize+'</span>':'';
     return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow);padding:20px;">'
-      +'<a href="'+esc(r.entry_href)+'" style="font-family:\'IBM Plex Mono\',monospace;font-size:14px;font-weight:600;color:var(--link);text-decoration:none;">'+esc(r.run_id)+'</a>'
+      +'<a href="'+esc(r.entry_href)+'" style="font-family:\'IBM Plex Mono\',monospace;font-size:14px;font-weight:600;color:var(--link);text-decoration:none;overflow-wrap:anywhere;">'+esc(r.run_id)+'</a>'+partial
       +'<div style="font-family:\'IBM Plex Mono\',monospace;font-size:11.5px;color:var(--faint);margin:4px 0 10px;">'+esc(r.generated_display)+'</div>'
       +'<span style="display:inline-block;padding:3px 10px;border-radius:100px;font-size:11px;font-weight:700;background:'+(ready?'var(--passSoft)':'var(--failSoft)')+';color:'+(ready?'var(--pass)':'var(--fail)')+';">'+(ready?'READY':'BLOCKED')+'</span>'
       +'<div style="font-family:\'IBM Plex Mono\',monospace;font-size:34px;font-weight:600;color:'+pc+';margin:12px 0 2px;">'+Math.round(r.pass_rate)+'%</div>'
@@ -468,19 +506,33 @@ function renderCompare(){
     return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow);padding:20px;"><h2 style="font-family:\'Manrope\',sans-serif;font-size:15px;font-weight:700;margin:0 0 14px;">'+title+'</h2>'
       +runs.map(function(r){var v=pick(r);return '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;"><span title="'+esc(r.run_id)+'" style="width:118px;flex-shrink:0;font-family:\'IBM Plex Mono\',monospace;font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(shortId(r.run_id))+'</span><div style="flex:1;height:10px;border-radius:100px;background:var(--surfaceAlt);overflow:hidden;"><span style="display:block;height:100%;width:'+(v/mx*100).toFixed(1)+'%;background:'+(typeof color==='function'?color(r):color)+';border-radius:100px;"></span></div><strong style="font-family:\'IBM Plex Mono\',monospace;font-size:12.5px;min-width:42px;text-align:right;">'+fmt(v)+'</strong></div>';}).join('')+'</div>';
   }
+  var prTitle=(runs.length>=2&&shared.size>0)?'Pass Rate · over '+shared.size+' shared':'Pass Rate';
+  function prVal(r){var v=rateOverShared(r,shared);return v==null?Number(r.pass_rate||0):v;}
   document.getElementById('cmp-bars').innerHTML=runs.length?
-    barCard('Pass Rate',function(v){return Math.round(v)+'%';},function(r){return Number(r.pass_rate||0);},function(r){return r.pass_rate>=80?'var(--pass)':(r.pass_rate>=60?'var(--flaky)':'var(--fail)');})
+    barCard(prTitle,function(v){return Math.round(v)+'%';},prVal,function(r){var v=prVal(r);return v>=80?'var(--pass)':(v>=60?'var(--flaky)':'var(--fail)');})
     +barCard('Duration',function(v){return fmtDur(v);},function(r){return Number(r.duration_ms||0);},'var(--accent)')
     +barCard('Failed',function(v){return String(v);},function(r){return Number(r.failed_total||0);},'var(--fail)'):'';
-  // delta table
+  // delta table — pass rate over the shared tests (apples-to-apples), plus the
+  // per-run test-set changes vs the baseline. Failed/flaky/duration stay raw.
   if(runs.length>=2){
-    var base=runs[0];var rows=runs.slice(1).map(function(r){
-      function d(cur,prev,suffix,invert){var diff=cur-prev;var good=invert?diff<0:diff>0;var col=diff===0?'var(--muted)':(good?'var(--pass)':'var(--fail)');var sign=diff>0?'+':'';return '<td style="text-align:right;font-family:\'IBM Plex Mono\',monospace;white-space:nowrap;padding:10px 12px;color:'+col+';">'+sign+(suffix==='s'?(Math.round(diff/100)/10):Math.round(diff))+suffix+'</td>';}
-      return '<tr><td style="font-family:\'IBM Plex Mono\',monospace;font-weight:600;white-space:nowrap;padding:10px 12px;">'+esc(r.run_id)+'</td>'
-        +d(r.pass_rate,base.pass_rate,'%',false)+d(r.failed_total,base.failed_total,'',true)+d(r.flaky,base.flaky,'',true)+d(r.duration_ms,base.duration_ms,'s',true)+'</tr>';
+    var base=runs[0];var baseSig=sigOf(base);var useShared=shared.size>0;
+    var basePR=useShared?rateOverShared(base,shared):Number(base.pass_rate||0);
+    function d(cur,prev,suffix,invert,label){var diff=cur-prev;var good=invert?diff<0:diff>0;var col=diff===0?'var(--muted)':(good?'var(--pass)':'var(--fail)');var sign=diff>0?'+':'';return '<td data-label="'+label+'" style="text-align:right;font-family:\'IBM Plex Mono\',monospace;white-space:nowrap;padding:10px 12px;color:'+col+';"><span class="delta-value">'+sign+(suffix==='s'?(Math.round(diff/100)/10):Math.round(diff))+suffix+'</span></td>';}
+    var rows=runs.slice(1).map(function(r){
+      var pr=useShared?rateOverShared(r,shared):Number(r.pass_rate||0);var prDiff=pr-basePR;
+      var prCol=prDiff===0?'var(--muted)':(prDiff>0?'var(--pass)':'var(--fail)');var prSign=prDiff>0?'+':'';
+      var dv=diffVs(baseSig,sigOf(r));
+      var changesCell='<td data-label="Changes" style="text-align:right;font-family:\'IBM Plex Mono\',monospace;white-space:nowrap;padding:10px 12px;color:var(--muted);"><span class="delta-value"><span style="color:var(--pass);">+'+dv.added+'</span> · <span style="color:var(--fail);">&minus;'+dv.removed+'</span></span></td>';
+      return '<tr><td data-label="Run" style="font-family:\'IBM Plex Mono\',monospace;font-weight:600;white-space:nowrap;padding:10px 12px;overflow-wrap:anywhere;"><span class="delta-value">'+esc(r.run_id)+'</span></td>'
+        +'<td data-label="Pass Rate" style="text-align:right;font-family:\'IBM Plex Mono\',monospace;white-space:nowrap;padding:10px 12px;"><span class="delta-value">'+Math.round(pr)+'% <span style="color:'+prCol+';">'+prSign+Math.round(prDiff)+'%</span></span></td>'
+        +changesCell
+        +d(r.failed_total,base.failed_total,'',true,'Failed')+d(r.flaky,base.flaky,'',true,'Flaky')+d(r.duration_ms,base.duration_ms,'s',true,'Duration')+'</tr>';
     }).join('');
-    document.getElementById('cmp-delta').innerHTML='<div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow);padding:20px;overflow-x:auto;-webkit-overflow-scrolling:touch;"><h2 style="font-family:\'Manrope\',sans-serif;font-size:16px;font-weight:700;margin:0 0 14px;">Delta vs Baseline · '+esc(base.run_id)+'</h2>'
-      +'<table style="width:100%;min-width:620px;table-layout:auto;border-collapse:collapse;font-size:13px;"><thead><tr style="background:var(--surfaceAlt);"><th style="text-align:left;min-width:190px;padding:10px 12px;font-size:11px;letter-spacing:0.05em;color:var(--faint);text-transform:uppercase;white-space:nowrap;">Run</th><th style="text-align:right;min-width:92px;padding:10px 12px;font-size:11px;letter-spacing:0.05em;color:var(--faint);text-transform:uppercase;white-space:nowrap;">Pass Rate</th><th style="text-align:right;min-width:74px;padding:10px 12px;font-size:11px;letter-spacing:0.05em;color:var(--faint);text-transform:uppercase;white-space:nowrap;">Failed</th><th style="text-align:right;min-width:74px;padding:10px 12px;font-size:11px;letter-spacing:0.05em;color:var(--faint);text-transform:uppercase;white-space:nowrap;">Flaky</th><th style="text-align:right;min-width:86px;padding:10px 12px;font-size:11px;letter-spacing:0.05em;color:var(--faint);text-transform:uppercase;white-space:nowrap;">Duration</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+    var sub=useShared?('Pass rate is over the '+shared.size+' test(s) every selected run executed; failed, flaky and duration are per-run totals.'):'These runs share no common tests, so pass rate is each run\'s own raw rate.';
+    var badge=useShared?'<span style="flex-shrink:0;font-family:\'IBM Plex Mono\',monospace;font-size:11px;color:var(--faint);">'+shared.size+' shared</span>':'';
+    document.getElementById('cmp-delta').innerHTML='<div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow);padding:20px;overflow-x:auto;-webkit-overflow-scrolling:touch;"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;"><h2 style="font-family:\'Manrope\',sans-serif;font-size:16px;font-weight:700;margin:0;">Delta over shared tests · baseline '+esc(base.run_id)+'</h2>'+badge+'</div>'
+      +'<p style="font-size:12px;color:var(--muted);margin:6px 0 14px;">'+sub+'</p>'
+      +'<table class="delta-table" style="width:100%;min-width:700px;table-layout:auto;border-collapse:collapse;font-size:13px;"><thead><tr style="background:var(--surfaceAlt);"><th style="text-align:left;min-width:190px;padding:10px 12px;font-size:11px;letter-spacing:0.05em;color:var(--faint);text-transform:uppercase;white-space:nowrap;">Run</th><th style="text-align:right;min-width:120px;padding:10px 12px;font-size:11px;letter-spacing:0.05em;color:var(--faint);text-transform:uppercase;white-space:nowrap;">Pass Rate</th><th style="text-align:right;min-width:96px;padding:10px 12px;font-size:11px;letter-spacing:0.05em;color:var(--faint);text-transform:uppercase;white-space:nowrap;">Changes</th><th style="text-align:right;min-width:74px;padding:10px 12px;font-size:11px;letter-spacing:0.05em;color:var(--faint);text-transform:uppercase;white-space:nowrap;">Failed</th><th style="text-align:right;min-width:74px;padding:10px 12px;font-size:11px;letter-spacing:0.05em;color:var(--faint);text-transform:uppercase;white-space:nowrap;">Flaky</th><th style="text-align:right;min-width:86px;padding:10px 12px;font-size:11px;letter-spacing:0.05em;color:var(--faint);text-transform:uppercase;white-space:nowrap;">Duration</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
   } else {document.getElementById('cmp-delta').innerHTML='';}
   document.getElementById('cmp-impact').innerHTML='';
   document.querySelectorAll('[data-add]').forEach(function(b){b.addEventListener('click',function(){var s=getSel();if(s.indexOf(b.dataset.add)<0)s.push(b.dataset.add);setSel(s);renderCompare();});});

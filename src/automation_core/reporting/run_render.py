@@ -653,14 +653,15 @@ def _slowest_tests_card(report_data: dict[str, Any]) -> str:
         return ""
     mx = max([float(t.get("duration_ms", 0)) for t in slow] + [1])
     rows = "".join(
-        '<div style="display:flex; align-items:center; gap:14px; margin-bottom:12px;">'
-        f'<a href="{_e(t.get("detail_href", "#"))}" style="flex:1; font-family:{MONO}; font-size:12.5px; '
-        f'color:var(--link); text-decoration:none; overflow-wrap:anywhere;">{_e(t.get("name", ""))}</a>'
-        '<div style="width:200px; height:8px; border-radius:100px; background:var(--surfaceAlt); overflow:hidden; '
-        'flex-shrink:0;">'
+        '<div style="display:flex; flex-wrap:wrap; align-items:center; gap:10px 14px; margin-bottom:12px;">'
+        f'<a href="{_e(t.get("detail_href", "#"))}" style="flex:1 1 160px; min-width:0; font-family:{MONO}; '
+        f'font-size:12.5px; color:var(--link); text-decoration:none; overflow-wrap:anywhere; word-break:break-word;">'
+        f"{_e(t.get('name', ''))}</a>"
+        '<div style="flex:1 1 110px; min-width:90px; max-width:220px; height:8px; border-radius:100px; '
+        'background:var(--surfaceAlt); overflow:hidden;">'
         f'<span style="display:block; height:100%; width:{float(t.get("duration_ms", 0)) / mx * 100:.1f}%; '
         'background:var(--accent); border-radius:100px;"></span></div>'
-        f'<strong style="font-family:{MONO}; font-size:12.5px; width:60px; text-align:right;">'
+        f'<strong style="font-family:{MONO}; font-size:12.5px; width:56px; text-align:right; flex-shrink:0;">'
         f"{_fmt_dur(t.get('duration_ms', 0))}</strong></div>"
         for t in slow
     )
@@ -1556,7 +1557,7 @@ def _lineage_diff_details(diff: dict[str, Any]) -> str:
             else '<div style="font-size:12px; color:var(--faint); font-style:italic;">None</div>'
         )
         return (
-            f'<div style="flex:1; min-width:0; background:{soft}; border-radius:10px; padding:12px 14px;">'
+            f'<div style="flex:1 1 200px; min-width:0; background:{soft}; border-radius:10px; padding:12px 14px;">'
             f'<div style="font-size:11px; font-weight:700; letter-spacing:0.04em; text-transform:uppercase; '
             f'color:{color}; margin-bottom:8px;">{title}</div>{body}</div>'
         )

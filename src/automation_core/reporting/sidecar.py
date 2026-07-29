@@ -145,6 +145,7 @@ def _lineage_block(report: RunReport, history: list[dict[str, Any]]) -> dict[str
     view_model = build_lineage_view(current, history_views)
     return {
         "signature": sorted(current.signature),
+        "pass_ids": sorted(current.passed_ids),
         "size": current.size,
         "pass_rate": current.pass_rate,
         "suite_label": _suite_label(report),

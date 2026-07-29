@@ -181,6 +181,29 @@ def test_history_page_renders_lineage_card_across_runs(tmp_path):
     assert sidecar["lineage"]["suite_label"]
 
 
+def test_compare_page_carries_lineage_intersection_data(tmp_path):
+    root = tmp_path / "portfolio"
+    for run_id, day in (("run-a", 14), ("run-b", 16)):
+        report = _mixed_report(run_id=run_id, generated_at=datetime(2026, 7, day, tzinfo=UTC))
+        run_dir = prepare_timestamped_report_dir(root, run_id=report.run_id, generated_at=report.generated_at)
+        generate_reporting_product(report, run_dir, update_history_file=False)
+    generate_report_portfolio(root, current_report_dir=run_dir)
+
+    portfolio = json.loads((root / "portfolio-data.json").read_text(encoding="utf-8"))
+    entry = portfolio["reports"][0]
+    # Each entry carries the compact lineage the Compare page scores against.
+    assert entry["lineage"]["signature"]
+    assert "pass_ids" in entry["lineage"]
+    assert entry["lineage"]["size"] == 3
+
+    compare = (root / "compare.html").read_text(encoding="utf-8")
+    # The Compare page computes pass rate over the shared intersection.
+    assert "intersectAll" in compare
+    assert "Compared over" in compare
+    assert "Delta over shared tests" in compare
+    assert "rateOverShared" in compare
+
+
 def test_matrix_uses_design_dimensions():
     sidecar = build_report_data(_mixed_report())
     # Default neutral matrix dimensions follow the design system.
