@@ -7,7 +7,7 @@
 في كل repo، أضف dependency بعد نشر GitHub tag:
 
 ```text
-automation-core @ git+https://github.com/ismailisleem/automation-core.git@v0.12.0
+automation-core @ git+https://github.com/ismailisleem/automation-core.git@v0.13.0
 ```
 
 أو لاحقاً إذا تم نشرها كـ package:
