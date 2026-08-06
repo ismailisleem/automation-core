@@ -58,7 +58,9 @@ def generate_reporting_product(
 
     output_report, redaction = redact_report(report, enabled=safe_share)
     details = _detail_hrefs(output_report)
-    history_entries = _history_entries(output_report, history_dir, update_history_file, history_limit)
+    history_entries = _history_entries(
+        output_report, history_dir, update_history_file, history_limit, report_dir=output_path.name
+    )
     timeline = build_timeline_events(output_report)
     report_data = build_report_data(
         report if safe_share else output_report,
@@ -143,11 +145,12 @@ def _history_entries(
     history_dir: str | Path | None,
     update_history_file: bool,
     history_limit: int,
+    report_dir: str = "",
 ) -> list[dict[str, Any]]:
     if not history_dir:
         return []
     if update_history_file:
-        return update_history(report, history_dir, max_entries=history_limit)
+        return update_history(report, history_dir, max_entries=history_limit, report_dir=report_dir)
     return load_history(history_dir, limit=history_limit)
 
 

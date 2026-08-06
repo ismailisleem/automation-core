@@ -48,23 +48,16 @@ fixtures before any UI exists.
    - *Single report* → per-lineage trend (same test set over time).
    - *Portfolio* → per-platform (web/mobile/api) bird's-eye average.
 
-## v1 simplification
+## Trend basis (0.13.1)
 
-`trend_series` plots each run's **raw pass rate restricted to its lineage**
-plus a coverage badge, rather than recomputing every trend point over a shared
-core. The precise intersection comparison lives in `pairwise_delta` (run vs
-run), which is where fairness matters most.
+`trend_series` measures each point over the lineage's **common core** — the
+tests present in every run of the lineage (`common_core`). Each point still
+carries its full `pass_rate` (shown in the tooltip) alongside the
+`shared_pass_rate` over that core and the `shared` core size, so the chart shows
+one consistent "over N shared tests" line without mixing bases. When the lineage
+has no common core the point falls back to the full rate. This uses the same
+intersection fairness basis as `pairwise_delta`.
 
-## Backlog / deferred
-
-- [ ] **Intersection-based trend line.** Make each `trend_series` point compare
-  over a stable common core (e.g. the intersection across the lineage, or a
-  rolling shared set) instead of the v1 raw-per-run-restricted-to-lineage
-  approach. Deferred until the initial lineage feature ships so the trend and
-  the pairwise compare use the exact same fairness basis. Do not lose this.
-
-## Not yet wired
-
-This is the logic layer only. Integration points still to come separately:
-sidecar exposure of the signature and portfolio/report rendering of lineage
-trends and diffs after the logic is locked and tested.
+Each trend point also carries an `entry_href` to that run's overview (the
+current run links to its own page; runs with an unknown report directory get no
+link), rendered as a keyboard-navigable SVG link.

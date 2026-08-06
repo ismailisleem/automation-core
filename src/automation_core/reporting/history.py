@@ -44,12 +44,13 @@ def _platform_records(report: RunReport) -> list[dict[str, Any]]:
     return records
 
 
-def history_entry_from_report(report: RunReport) -> dict[str, Any]:
+def history_entry_from_report(report: RunReport, *, report_dir: str = "") -> dict[str, Any]:
     summary = summarize_run(report)
     speed = fastest_slowest_tests(report, limit=10)
     framework_hint = f"{report.framework} {report.project_name}".strip()
     return {
         **summary,
+        "report_dir": report_dir,
         "platforms": dict(platform_breakdown(_platform_records(report), framework_hint=framework_hint)),
         "failure_categories": failure_categories(report),
         "failed_tests": [_failed_test_entry(test) for test in report.tests if is_blocking_failure_status(test.status)],
@@ -78,10 +79,11 @@ def update_history(
     history_dir: str | Path,
     *,
     max_entries: int = 50,
+    report_dir: str = "",
 ) -> list[dict[str, Any]]:
     history_path = Path(history_dir)
     history_path.mkdir(parents=True, exist_ok=True)
-    entry = history_entry_from_report(report)
+    entry = history_entry_from_report(report, report_dir=report_dir)
     entry_path = history_path / f"{_safe_filename(report.run_id)}.json"
     entry_path.write_text(json.dumps(to_jsonable(entry), indent=2), encoding="utf-8")
 

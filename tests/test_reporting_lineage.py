@@ -257,3 +257,68 @@ def test_run_view_from_history_entry_uses_stored_fq_id():
     view = lineage.run_view_from_history_entry(entry)
     assert view.signature == frozenset({"auth::test_login", "auth::test_logout", "test_fallback"})
     assert view.pass_rate == round(2 / 3 * 100, 2)
+
+
+# --------------------------------------------------------------------------- #
+# Intersection-based trend (common core) + click-through links
+# --------------------------------------------------------------------------- #
+
+
+def test_common_core_is_intersection_of_all_members():
+    a = _view("a", 1, _passed(["t1", "t2", "t3", "t4"]))
+    b = _view("b", 2, _passed(["t1", "t2", "t3", "x"]))
+    c = _view("c", 3, _passed(["t1", "t2", "t3", "t4"]))
+    assert lineage.common_core([a, b, c]) == frozenset({"t1", "t2", "t3"})
+    assert lineage.common_core([]) == frozenset()
+
+
+def test_trend_shared_pass_rate_is_over_common_core():
+    # A partial smoke run of {t0,t1} makes the lineage common core = {t0,t1}.
+    full = RunView("f1", "2026-07-01", _passed(["t0", "t1", "t2", "t3"]))  # full 100%
+    smoke = RunView("smoke", "2026-07-02", _passed(["t0", "t1"]))  # partial subset run
+    # current: t1 fails -> full 75%, but over the shared core {t0,t1} it is 50%.
+    cur = RunView("cur", "2026-07-03", {"t0": "passed", "t1": "failed", "t2": "passed", "t3": "passed"})
+    series = trend_series(cur, [full, smoke])
+    by = {p["run_id"]: p for p in series}
+    assert by["cur"]["shared"] == 2
+    assert by["cur"]["pass_rate"] == 75.0
+    assert by["cur"]["shared_pass_rate"] == 50.0
+    assert by["f1"]["shared_pass_rate"] == 100.0
+    assert by["smoke"]["partial"] is True
+    assert by["cur"]["is_target"] is True
+
+
+def test_trend_shared_falls_back_to_full_rate_without_common_core():
+    only = RunView("only", "2026-07-01", {"a": "passed", "b": "failed"})
+    series = trend_series(only, [])
+    assert series[0]["shared"] == 2  # single run: core is its own set
+    assert series[0]["shared_pass_rate"] == 50.0 == series[0]["pass_rate"]
+
+
+def test_trend_added_and_removed_reflected_in_diff():
+    prev = RunView("prev", "2026-07-01", _passed(["a", "b", "c"]))
+    cur = RunView("cur", "2026-07-02", _passed(["b", "c", "d"]))  # removed a, added d
+    vm = lineage.build_lineage_view(cur, [prev])
+    assert vm["diff_vs_previous"]["added"] == ["d"]
+    assert vm["diff_vs_previous"]["removed"] == ["a"]
+
+
+def test_trend_point_links_target_sibling_and_missing_dir():
+    target = RunView("cur", "2026-07-03", _passed(["a", "b", "c"]))  # no report_dir -> target
+    sibling = RunView("sib", "2026-07-02", _passed(["a", "b", "c"]), report_dir="20260702-000000-sib")
+    orphan = RunView("orph", "2026-07-01", _passed(["a", "b", "c"]))  # no report_dir known
+    series = trend_series(target, [sibling, orphan])
+    by = {p["run_id"]: p for p in series}
+    assert by["cur"]["entry_href"] == "index.html"  # current run links to its own overview
+    assert by["sib"]["entry_href"] == "../20260702-000000-sib/index.html"  # safe relative path
+    assert by["orph"]["entry_href"] == ""  # unknown dir -> no link (degrade safely)
+
+
+def test_run_view_from_history_entry_carries_report_dir():
+    entry = {
+        "run_id": "r",
+        "latest_run": "2026-07-01T00:00:00Z",
+        "report_dir": "20260701-000000-r",
+        "test_statuses": [{"fq_id": "a", "status": "passed"}],
+    }
+    assert lineage.run_view_from_history_entry(entry).report_dir == "20260701-000000-r"
