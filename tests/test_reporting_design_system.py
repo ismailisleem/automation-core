@@ -180,6 +180,17 @@ def test_history_page_renders_lineage_card_across_runs(tmp_path):
     assert sidecar["lineage"]["previous_run_id"] == "run-a"
     assert sidecar["lineage"]["suite_label"]
 
+    # The trend is measured over the shared common core, and the sibling run's
+    # point is a keyboard-navigable SVG link to that run's overview by a safe
+    # relative path.
+    assert sidecar["lineage"]["trend"][0]["shared"] >= 1
+    assert "test present in every run" in overview_html or "tests present in every run" in overview_html
+    sibling_dir = first_dir.name
+    assert f'<a href="../{sibling_dir}/index.html"' in overview_html
+    assert "aria-label=" in overview_html  # accessible label on the trend link
+    # The current run's own point stays on its overview (no cross-run navigation).
+    assert 'href="index.html"' in overview_html or ">Overview<" in overview_html
+
 
 def test_compare_page_carries_lineage_intersection_data(tmp_path):
     root = tmp_path / "portfolio"

@@ -1473,11 +1473,21 @@ def _lineage_chip(report_data: dict[str, Any]) -> str:
 
 
 def _lineage_trend_svg(points: list[dict[str, Any]], *, w: int = 560, h: int = 170) -> str:
-    """Lineage trend chart: filled dots for full runs, hollow for partial
-    coverage, a ringed dot for this run; each point carries a hover label."""
+    """Lineage trend chart. The line is measured over the lineage common core
+    ("over N shared tests") when one exists, else over each run's full set.
+    Markers: filled = full run, hollow = partial coverage, ringed = this run.
+    Sibling points are SVG links (mouse + keyboard) to that run's overview; the
+    current run's point is hover-only. Each point exposes a hover + accessible
+    label with the run id, date and pass-rate basis."""
     if not points:
         return ""
-    series = [max(0.0, min(100.0, float(p.get("pass_rate", 0)))) for p in points]
+    shared_n = int(points[0].get("shared", 0) or 0)
+    use_shared = shared_n > 0
+
+    def rate(p: dict[str, Any]) -> float:
+        return float(p.get("shared_pass_rate", 0) if use_shared else p.get("pass_rate", 0))
+
+    series = [max(0.0, min(100.0, rate(p))) for p in points]
     pad, base = 16, h - 22
     inner_w, inner_h = w - 2 * pad, base - 16
     xs = [w / 2] if len(series) == 1 else [pad + i / (len(series) - 1) * inner_w for i in range(len(series))]
@@ -1487,25 +1497,43 @@ def _lineage_trend_svg(points: list[dict[str, Any]], *, w: int = 560, h: int = 1
     marks = []
     for i, (x, y) in enumerate(zip(xs, ys, strict=False)):
         p = points[i]
-        label = f"{p.get('run_id', '')} · {_fmt_pct(p.get('pass_rate', 0))} pass"
-        if p.get("partial"):
-            label += f" · partial {int(p.get('coverage_ratio', 0))}%"
+        run_id = str(p.get("run_id", ""))
+        date = _fmt_ts(p.get("generated_at"))
+        basis = (
+            f"{_fmt_pct(rate(p))} over {shared_n} shared" if use_shared else f"{_fmt_pct(p.get('pass_rate', 0))} pass"
+        )
+        full = ""
+        if use_shared and round(float(p.get("shared_pass_rate", 0))) != round(float(p.get("pass_rate", 0))):
+            full = f" · full {_fmt_pct(p.get('pass_rate', 0))}"
+        label = " · ".join(x for x in (run_id, date, basis) if x) + full + (" · partial" if p.get("partial") else "")
         if p.get("is_target"):
-            marks.append(
+            marker = (
                 f'<circle cx="{x:.1f}" cy="{y:.1f}" r="7" fill="none" stroke="var(--accent)" stroke-width="2"/>'
                 f'<circle cx="{x:.1f}" cy="{y:.1f}" r="3.5" fill="var(--accent)"/>'
             )
         elif p.get("partial"):
-            marks.append(
+            marker = (
                 f'<circle cx="{x:.1f}" cy="{y:.1f}" r="4" fill="var(--surface)" '
                 'stroke="var(--accent)" stroke-width="2"/>'
             )
         else:
-            marks.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="3.5" fill="var(--accent)"/>')
-        marks.append(
-            f'<circle cx="{x:.1f}" cy="{y:.1f}" r="12" fill="rgba(0,0,0,0)" '
-            f'style="cursor:default;pointer-events:all;" data-trend-label="{_e(label)}"/>'
-        )
+            marker = f'<circle cx="{x:.1f}" cy="{y:.1f}" r="3.5" fill="var(--accent)"/>'
+        href = str(p.get("entry_href", "") or "")
+        if href and not p.get("is_target"):
+            hit = (
+                f'<circle cx="{x:.1f}" cy="{y:.1f}" r="12" fill="rgba(0,0,0,0)" '
+                f'style="cursor:pointer;pointer-events:all;" data-trend-label="{_e(label)}"/>'
+            )
+            marks.append(
+                f'<a href="{_e(href)}" aria-label="Open {_e(run_id)} report — {_e(basis)}">'
+                f"<title>{_e(label)}</title>{marker}{hit}</a>"
+            )
+        else:
+            marks.append(
+                marker + f'<circle cx="{x:.1f}" cy="{y:.1f}" r="12" fill="rgba(0,0,0,0)" '
+                f'style="cursor:default;pointer-events:all;" data-trend-label="{_e(label)}"><title>{_e(label)}</title>'
+                "</circle>"
+            )
     return (
         f'<svg viewBox="0 0 {w} {h}" style="width:100%; height:{h}px;" preserveAspectRatio="none">'
         f'<path d="{area}" fill="var(--accent)" opacity="0.10"/>'
@@ -1604,12 +1632,20 @@ def _lineage_card(report_data: dict[str, Any]) -> str:
         + f'<span style="flex-shrink:0; font-size:12px; color:var(--faint); text-align:right;">{size} run'
         f"{'s' if size != 1 else ''} · same test set</span></div>"
     )
+    shared_n = int(trend[0].get("shared", 0) or 0)
+    basis = (
+        f"Pass rate is measured over the <strong>{shared_n}</strong> test"
+        f"{'s' if shared_n != 1 else ''} present in every run of this lineage."
+        if shared_n
+        else "Pass rate is each run's own rate (these runs share no common test)."
+    )
     return _card(
         heading
         + f'<div style="font-size:13px; color:var(--muted); margin:-4px 0 2px;">{summary}</div>'
         + _lineage_diff_details(diff)
         + f'<div style="margin-top:12px;">{_lineage_trend_svg(trend)}</div>'
-        + _lineage_legend(),
+        + _lineage_legend()
+        + f'<p style="font-size:11.5px; color:var(--faint); margin:10px 0 0;">{basis}</p>',
         extra="margin-bottom:20px;",
     )
 
