@@ -17,9 +17,12 @@ Design decisions (see ``docs/lineage-model.md``):
   run that is a subset of a full run counts as the same lineage automatically.
 - Lineages are assigned chronologically; each run matches against the
   *most-recent* run of existing lineages (no transitive chaining).
-- ``pairwise_delta`` compares over the exact **intersection**; ``trend_series``
-  plots each run's raw pass rate restricted to its lineage plus a coverage
-  badge (a deliberate v1 simplification — see the doc's backlog).
+- ``pairwise_delta`` compares over the exact pairwise **intersection**.
+- ``trend_series`` measures over the lineage **common core** — the tests present
+  in every run of that lineage. Each point still carries both the full
+  ``pass_rate`` and the ``shared_pass_rate`` over that core, and partial-coverage
+  runs are flagged separately. When a lineage has no common core, the trend
+  falls back to each run's full rate.
 """
 
 from __future__ import annotations
