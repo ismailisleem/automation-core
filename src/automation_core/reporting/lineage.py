@@ -17,9 +17,12 @@ Design decisions (see ``docs/lineage-model.md``):
   run that is a subset of a full run counts as the same lineage automatically.
 - Lineages are assigned chronologically; each run matches against the
   *most-recent* run of existing lineages (no transitive chaining).
-- ``pairwise_delta`` compares over the exact **intersection**; ``trend_series``
-  plots each run's raw pass rate restricted to its lineage plus a coverage
-  badge (a deliberate v1 simplification — see the doc's backlog).
+- ``pairwise_delta`` compares over the exact pairwise **intersection**.
+- ``trend_series`` measures over the lineage **common core** — the tests present
+  in every run of that lineage. Each point still carries both the full
+  ``pass_rate`` and the ``shared_pass_rate`` over that core, and partial-coverage
+  runs are flagged separately. When a lineage has no common core, the trend
+  falls back to each run's full rate.
 """
 
 from __future__ import annotations
@@ -40,13 +43,15 @@ class RunView:
     """A run reduced to what lineage math needs: an id, a time, and per-test
     fully-qualified ids with their statuses."""
 
-    __slots__ = ("run_id", "generated_at", "statuses")
+    __slots__ = ("run_id", "generated_at", "statuses", "report_dir")
 
-    def __init__(self, run_id: str, generated_at: Any, statuses: Mapping[str, str]):
+    def __init__(self, run_id: str, generated_at: Any, statuses: Mapping[str, str], report_dir: str = ""):
         self.run_id = run_id
         self.generated_at = generated_at
         # fully-qualified id -> status (last write wins for duplicate ids).
         self.statuses: dict[str, str] = dict(statuses)
+        # Report folder basename under runs/, used to link sibling run reports.
+        self.report_dir: str = report_dir
 
     @property
     def signature(self) -> frozenset[str]:
@@ -150,7 +155,7 @@ def run_view_from_history_entry(entry: Mapping[str, Any]) -> RunView:
             statuses[str(key)] = str(item.get("status", "unknown"))
     run_id = entry.get("run_id", "")
     generated_at = entry.get("latest_run") or entry.get("generated_at")
-    return RunView(run_id, generated_at, statuses)
+    return RunView(run_id, generated_at, statuses, report_dir=str(entry.get("report_dir", "") or ""))
 
 
 # --------------------------------------------------------------------------- #
@@ -338,28 +343,62 @@ def build_lineage_view(
     }
 
 
+def common_core(members: Sequence[RunView]) -> frozenset[str]:
+    """The tests present in *every* run of the lineage — a single stable basis
+    over which the trend can be measured apples-to-apples."""
+    members = list(members)
+    if not members:
+        return frozenset()
+    core = set(members[0].signature)
+    for member in members[1:]:
+        core &= member.signature
+    return frozenset(core)
+
+
 def trend_series(
     target: RunView, views: Sequence[RunView], *, threshold: float = DEFAULT_LINEAGE_THRESHOLD
 ) -> list[dict[str, Any]]:
-    """The lineage trend for ``target``: one point per run in its lineage.
+    """The lineage trend for ``target``: one point per run in its lineage, oldest first.
 
-    Each point carries the run's raw pass rate and its coverage badge, oldest
-    first. (v1: raw per-run pass rate restricted to the lineage; making each
-    point intersection-based is a tracked backlog item.)
+    Each point carries two clearly distinguished pass rates:
+
+    - ``pass_rate`` — the run's full pass rate over everything it executed.
+    - ``shared_pass_rate`` — the pass rate over the lineage's common core (the
+      tests present in every run of the lineage), the fair apples-to-apples
+      basis for the trend line. ``shared`` is that core's size.
+
+    Plus the coverage badge (``partial`` when a run covered fewer tests than the
+    widest run). When the lineage has no common core, ``shared`` is ``0`` and
+    ``shared_pass_rate`` falls back to the full pass rate.
     """
     members = lineage_members(target, views, threshold=threshold)
+    core = common_core(members)
     points: list[dict[str, Any]] = []
     for member in members:
         cov = coverage(member, members)
+        shared_rate = member.pass_rate_over(core) if core else member.pass_rate
+        is_target = member.run_id == target.run_id
+        # The current run's point links to its own overview; siblings link to
+        # their report via a relative path. Unknown dirs get no link so we never
+        # emit broken navigation.
+        if is_target:
+            entry_href = "index.html"
+        elif member.report_dir:
+            entry_href = f"../{member.report_dir}/index.html"
+        else:
+            entry_href = ""
         points.append(
             {
                 "run_id": member.run_id,
                 "generated_at": member.generated_at,
                 "pass_rate": member.pass_rate,
+                "shared_pass_rate": shared_rate,
+                "shared": len(core),
                 "total": member.size,
                 "coverage_ratio": cov["ratio"],
                 "partial": cov["partial"],
-                "is_target": member.run_id == target.run_id,
+                "is_target": is_target,
+                "entry_href": entry_href,
             }
         )
     return points

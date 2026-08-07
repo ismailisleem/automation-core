@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.13.1
+
+### Test Lineage enhancements
+
+- **Intersection-based trend** — the Lineage Pass Rate Trend now measures pass
+  rate over the lineage's *common core* (the tests present in every run of the
+  lineage), labelled "over N shared tests", so a partial run no longer shows a
+  misleadingly high full-run rate against full runs. The full per-run rate stays
+  available in the point tooltip, and partial-coverage runs keep their marker.
+- **Click-through trend points** — each trend point links to that run's report
+  overview via a safe relative path, as a keyboard-navigable SVG link with an
+  accessible label (run id, date, pass-rate basis). The current run's point
+  stays on its own overview, and points with an unknown run path degrade to a
+  non-navigating hover only.
+
 ## 0.13.0
 
 ### Added — Test Lineage
