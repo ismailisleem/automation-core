@@ -17,7 +17,7 @@ See [Template Repository Strategy](docs/template_strategy.md) for the product-fa
 From GitHub after the repository is published:
 
 ```bash
-pip install "automation-core @ git+https://github.com/ismailisleem/automation-core.git@v0.13.0"
+pip install "automation-core @ git+https://github.com/ismailisleem/automation-core.git@v0.13.1"
 ```
 
 For local development:
